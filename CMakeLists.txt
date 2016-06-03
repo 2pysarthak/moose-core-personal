@@ -1,6 +1,5 @@
 set(CMAKE_LEGACY_CYGWIN_WIN32 0)
 cmake_minimum_required(VERSION 2.6.0 FATAL_ERROR)
-include(CheckIncludeFileCXX)
 
 if(COMMAND cmake_policy)
     cmake_policy(SET CMP0003 NEW)
@@ -10,7 +9,11 @@ if(COMMAND cmake_policy)
     endif(POLICY CMP0050)
 endif(COMMAND cmake_policy)
 
-project(moose)
+project(MOOSE)
+
+include(CheckCXXCompiler.cmake)
+include(CheckIncludeFileCXX)
+include(FindPkgConfig)
 
 # Set moose version
 # Get the latest abbreviated commit hash of the working branch
@@ -22,7 +25,6 @@ execute_process(
 )
 add_definitions( -DMOOSE_VERSION="${GIT_VERSION_OUTPUT}")
 
-include(FindPkgConfig)
 
 # This snippet is from LLVM project.
 # Sanity check our source directory to make sure that we are not trying to
@@ -70,13 +72,13 @@ endif()
 
 ################################ CMAKE OPTIONS ##################################
 
-option(WITH_DOC "Build documentation using python-sphinx and doxygen" OFF)
 option(VERBOSITY "Set MOOSE verbosity level (deprecated)" 0)
 ## Unit testing and debug mode.
 option(DEBUG "Build with debug support" OFF)
 option(GPROF "Build for profiling using gprof" OFF)
 option(ENABLE_UNIT_TESTS "Enable unit tests (DEBUG should also be ON)" OFF)
 option(WITH_PYTHON "Build native python extension" ON)
+option(WITH_CYTHON "Build python extension using Cython. (experimental)" OFF)
 option(WITH_MPI  "Enable Openmpi support" OFF)
 option(WITH_BOOST "Use boost library instead of GSL" OFF)
 option(WITH_GSL  "Use gsl-library. Alternative is WITH_BOOST" ON)
@@ -102,42 +104,6 @@ option(HDF5_STATIC_HOME
 ################################# CMKAE MACROS #################################
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
-
-########################### COMPILER MACROS #####################################
-
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG( "-std=c++11" COMPILER_SUPPORTS_CXX11 )
-CHECK_CXX_COMPILER_FLAG( "-std=c++0x" COMPILER_SUPPORTS_CXX0X )
-CHECK_CXX_COMPILER_FLAG( "-Wno-strict-aliasing" COMPILER_WARNS_STRICT_ALIASING )
-
-# Turn warning to error: Not all of the options may be supported on all
-# versions of compilers. be careful here.
-add_definitions(-Wall
-    #-Wno-return-type-c-linkage
-    -Wno-unused-variable      
-    -Wno-unused-function
-    #-Wno-unused-private-field
-    )
-add_definitions(-fPIC)
-if(COMPILER_WARNS_STRICT_ALIASING)
-    add_definitions( -Wno-strict-aliasing )
-endif(COMPILER_WARNS_STRICT_ALIASING)
-
-
-if(COMPILER_SUPPORTS_CXX11)
-    message(STATUS "Your compiler supports c++11 features. Enabling it")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-    add_definitions( -DENABLE_CPP11 )
-elseif(COMPILER_SUPPORTS_CXX0X)
-    message(STATUS "Your compiler supports c++0x features. Enabling it")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-    add_definitions( -DENABLE_CXX11 )
-    add_definitions( -DBOOST_NO_CXX11_SCOPED_ENUMS -DBOOST_NO_SCOPED_ENUMS )
-else()
-    add_definitions( -DBOOST_NO_CXX11_SCOPED_ENUMS -DBOOST_NO_SCOPED_ENUMS )
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
-endif()
-
 
 ############################ BUILD CONFIGURATION #################################
 
@@ -187,7 +153,6 @@ IF(NOTIFY_PROGRESS)
 ENDIF()
 ################################### TARGETS ####################################
 
-add_library(_moose MODULE pymoose/moosemodule.cpp)
 add_library(libmoose SHARED basecode/main.cpp)
 add_executable(moose.bin basecode/main.cpp)
 
@@ -235,15 +200,6 @@ if(LIBSBML_FOUND)
         find_package(LibXML2 REQUIRED)
     endif()
     include_directories(${LibXML2_INCLUDE_DIRS})
-    if(${LIBSBML_LIBRARY_DIRS})
-        target_link_libraries(libmoose PROPERTIES LINK_FLAGS
-            "-L${LIBSBML_LIBRARY_DIRS}"
-            )
-        target_link_libraries(_moose 
-            PROPERTIES LINK_FLAGS "-L${LIBSBML_LIBRARY_DIRS}"
-            )
-    endif()
-
 else()
     message(
         "======================================================================\n"
@@ -306,23 +262,21 @@ if(WITH_GSL)
     # top level.
     include_directories( ${GSL_INCLUDE_DIRS} )
 elseif(WITH_BOOST)
+<<<<<<< HEAD
     find_package(Boost 1.44 COMPONENTS filesystem REQUIRED)
+=======
+    find_package(Boost 1.44 COMPONENTS filesystem random REQUIRED)
+>>>>>>> bhallalab/master
     find_package( LAPACK REQUIRED )
     add_definitions( -DUSE_BOOST -UUSE_GSL )
     include_directories( ${Boost_INCLUDE_DIRS} )
-    #    check_include_file_cxx(
-    #        ${Boost_INCLUDE_DIRS}/boost/random/random_device.hpp
-    #        BOOST_RANDOM_DEVICE_EXISTS
-    #        )
-    #    if(BOOST_RANDOM_DEVICE_EXISTS)
-    #        add_definitions(-DBOOST_RANDOM_DEVICE_EXISTS)
-    #    endif(BOOST_RANDOM_DEVICE_EXISTS)
-    #    check_include_file_cxx(
-    #        ${Boost_INCLUDE_DIRS}/boost/filesystem.hpp BOOST_FILESYSTEM_EXISTS
-    #        )
-    #    if(BOOST_FILESYSTEM_EXISTS)
-    #        add_definitions( -DBOOST_FILESYSTEM_EXISTS )
-    #    endif(BOOST_FILESYSTEM_EXISTS)
+    check_include_file_cxx(
+        ${Boost_INCLUDE_DIRS}/boost/random/random_device.hpp
+        BOOST_RANDOM_DEVICE_EXISTS
+        )
+    if(BOOST_RANDOM_DEVICE_EXISTS)
+        add_definitions(-DBOOST_RANDOM_DEVICE_EXISTS)
+    endif(BOOST_RANDOM_DEVICE_EXISTS)
 endif()
 
 ## Setup hdf5
@@ -380,7 +334,6 @@ endif( HDF5_FOUND )
 # headers in non-standard path. issue #80.
 if(HDF5_LIBRARY_DIRS)
     set_target_properties( libmoose PROPERTIES LINK_FLAGS "-L${HDF5_LIBRARY_DIRS}" )
-    set_target_properties( _moose PROPERTIES LINK_FLAGS "-L${HDF5_LIBRARY_DIRS}" )
 endif()
 
 find_package(Termcap)
@@ -553,25 +506,12 @@ if(CMAKE_VERSION VERSION_LESS "2.8.0")
     target_link_libraries(moose.bin PUBLIC moose)
 ELSE()
     target_link_libraries(moose.bin LINK_PUBLIC moose)
-    if(LIBSBML_FOUND)
-        target_link_libraries(moose.bin LINK_PUBLIC ${LIBSBML_LIBRARIES})
-    endif(LIBSBML_FOUND)
 ENDIF()
-
-if(WITH_DOC)
-    FIND_PACKAGE(Doxygen REQUIRED)
-    add_custom_command(TARGET libmoose POST_BUILD
-        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.full
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Building developer documentation"
-        VERBATIM
-        )
-endif(WITH_DOC)
 
 ######################### BUILD PYMOOSE ########################################
 # Root of all python module.
-SET(PROJECT_PYTHON_PATH ${CMAKE_CURRENT_SOURCE_DIR}/python)
 if(WITH_PYTHON)
+<<<<<<< HEAD
     message(STATUS "Building native python extension of MOOSE")
     set(PYMOOSE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python/moose")
 
@@ -673,56 +613,10 @@ if(WITH_DOC)
         VERBATIM
         )
 endif(WITH_DOC)
+=======
+    add_subdirectory( pymoose )
+>>>>>>> bhallalab/master
 endif(WITH_PYTHON)
-
-######################### CYMOOSE #############################################
-option(BUILD_CYMOOSE "Build python extension using Cython. Development version." OFF)
-if(BUILD_CYMOOSE)
-    message(STATUS "Building experimental cython extension of MOOSE.")
-    add_library(cymoose SHARED cymoose/cymoose_methods.cxx)
-    set_target_properties(cymoose PROPERTIES COMPILE_DEFINITIONS "CYMOOSE")
-    if(DEBUG)
-        add_definitions("-g -Wall")
-    endif()
-
-    set_target_properties(cymoose PROPERTIES 
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cymoose"
-            )
-
-if(MACOSX)
-    target_link_libraries(cymoose 
-        "-Wl,-all_load"
-        ${MOOSE_LIBRARIES}
-        ${LIBRARIES}
-        "-Wl,-noall_load"
-        ${SYSTEM_LIBRARIES}
-        )
-ELSE(MACOSX)
-    target_link_libraries(cymoose 
-        "-Wl,--whole-archive"
-        ${MOOSE_LIBRARIES}
-        ${LIBRARIES}
-        "-Wl,--no-whole-archive"
-        ${SYSTEM_LIBRARIES}
-        )
-endif(MACOSX)
-
-endif(BUILD_CYMOOSE)
-
-## Moose documentation
-option(WITH_DOC "Build documentation using python-sphinx and doxygen" OFF)
-if(WITH_DOC)
-    FIND_PACKAGE(Sphinx REQUIRED)
-    message(STATUS "Build documentation.")
-    set(USER_DOC_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Docs/user/py/_build/html)
-    set(DEVELOPER_DOC_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Docs/developer/html)
-    ADD_CUSTOM_TARGET(docs ALL
-        COMMAND ./docgen
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating html doc using sphinx and doxygen"
-        )
-
-endif(WITH_DOC)
 
 ######################### INSTALL ##############################################
 
@@ -750,17 +644,6 @@ if(WITH_PYTHON)
 
 endif(WITH_PYTHON)
 
-if(WITH_DOC)
-    message(STATUS "Installing moose doc")
-    install(DIRECTORY ${USER_DOC_OUTPUT_DIR}
-        DESTINATION share/doc/moose
-        )
-
-    install(DIRECTORY ${DEVELOPER_DOC_OUTPUT_DIR}
-        DESTINATION share/doc/moose/developer
-        )
-endif()
-
 # Print message to start build process
 if(${CMAKE_BUILD_TOOL} MATCHES "make")
     message(
@@ -774,7 +657,7 @@ endif()
 
 ############################ CTEST ######################################
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake_moose_ctest.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/MooseTests.cmake)
 
 ############################ CPACK ######################################
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake_moose_cpack.cmake)
